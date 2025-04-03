@@ -2,43 +2,45 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_CREDENTIALS = credentials('docker-hub') // Use your Jenkins credentials ID for Docker Hub
-        GITHUB_CREDENTIALS = credentials('github-credentials') // Use your GitHub credentials ID
+        DOCKER_IMAGE = "flask-app"
     }
 
     stages {
-        stage('Clone Repository') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'main', 
-                    credentialsId: 'github-credentials', 
-                    url: 'https://github.com/Praveen-Pukkala/flask-app.git'
+                git branch: 'main', credentialsId: 'github-credentials', url: 'git@github.com:Praveen-Pukkala/flask-app.git'
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh 'docker build -t flask-app .'
-                }
+                sh 'docker build -t ${DOCKER_IMAGE} .'
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Run Container') {
             steps {
-                script {
-                    sh 'echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS_USR --password-stdin'
-                    sh 'docker tag flask-app praveenpukkala/flask-app:latest'
-                    sh 'docker push praveenpukkala/flask-app:latest'
-                }
+                sh 'docker run -d -p 5000:5000 ${DOCKER_IMAGE}'
             }
         }
 
-        stage('Deploy Container') {
+        stage('Test Application') {
             steps {
-                script {
-                    sh 'docker run -d -p 5000:5000 praveenpukkala/flask-app:latest'
-                }
+                sh 'curl -f http://localhost:5000 || exit 1'
             }
         }
     }
+
+    post {
+        always {
+            echo 'Pipeline execution completed!'
+        }
+    }
 }
+
